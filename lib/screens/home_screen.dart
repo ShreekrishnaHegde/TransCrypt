@@ -366,27 +366,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           const SizedBox(height: 20),
 
           // Quick Stats with animation
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Files Shared',
-                  '24',
-                  Icons.folder_open,
-                  const Color(0xFF3B82F6),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildStatCard(
-                  'Total Size',
-                  '1.2 GB',
-                  Icons.storage,
-                  const Color(0xFF9333EA),
-                ),
-              ),
-            ],
-          ),
+          
+         
         ],
       ),
     );
