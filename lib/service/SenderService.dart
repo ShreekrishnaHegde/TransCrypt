@@ -113,4 +113,6 @@ class FileSender {
       );
     }
   }
+
+  static Future<void> startFileServer(String s, BuildContext context) async {}
 }

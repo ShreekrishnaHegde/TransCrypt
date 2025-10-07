@@ -100,4 +100,6 @@ class FileReceiver {
       return null;
     }
   }
+
+  static Future<void> downloadFile(String wifiIP, String saveResult) async {}
 }
