@@ -1,10 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:nativewrappers/_internal/vm/lib/typed_data_patch.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:cryptography/cryptography.dart';
-import 'package:network_info_plus/network_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:transcrypt/methods/Decryption.dart';
 import 'package:transcrypt/methods/keyManaget.dart';
@@ -26,7 +24,6 @@ class ReceiverService{
   }
   // ----------------------------------------------------------------------
   static Future<List<DeviceInfo>> scanForServers(String subnet) async {
-
     List<DeviceInfo> devices = [];
     List<Future<DeviceInfo?>> futures = [];
     for (int i =1;i<= 255;i++){
@@ -105,7 +102,6 @@ class ReceiverService{
           serverPublicKey,
           clientKeys.privateKey,
         );
-
         // Write decrypted bytes to file
         raf.writeFromSync(decryptedChunk as List<int>);
       }

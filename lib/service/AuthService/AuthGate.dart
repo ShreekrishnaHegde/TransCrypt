@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:transcrypt/screens/home_page.dart';
+import '../../screens/home_screen.dart';
 import 'package:transcrypt/screens/login_screen.dart';
 import 'package:transcrypt/service/AuthService/AuthService.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -31,6 +31,10 @@ class AuthGate extends StatelessWidget {
         if (session != null) {
           return HomeScreen();
         } else {
+        if(session!=null){
+          return HOME();
+        }
+        else{
           return const Login();
         }
       },
