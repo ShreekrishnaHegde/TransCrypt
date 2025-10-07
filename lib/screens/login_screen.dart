@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:transcrypt/screens/home_page.dart';
 import 'package:transcrypt/screens/register_screen.dart';
 import 'package:transcrypt/service/AuthService/AuthGate.dart';
 import 'package:transcrypt/service/AuthService/AuthService.dart';
@@ -9,14 +10,15 @@ class Login extends StatefulWidget {
   @override
   State<Login> createState() => _LoginState();
 }
+
 class _LoginState extends State<Login> {
-  final authService=AuthService();
-  final _emailController=TextEditingController();
-  final _passwordController=TextEditingController();
+  final authService = AuthService();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   bool _obscureText = true;
 
-  InputDecoration buildInputDecoration(String labelText,IconData icon) {
+  InputDecoration buildInputDecoration(String labelText, IconData icon) {
     return InputDecoration(
       border: UnderlineInputBorder(),
       labelText: labelText,
@@ -33,35 +35,39 @@ class _LoginState extends State<Login> {
       fillColor: Colors.grey.shade100,
     );
   }
+
   final ButtonStyle raisedButtonStyle = ElevatedButton.styleFrom(
     foregroundColor: Colors.white,
     backgroundColor: Color(0xFF140447),
-    minimumSize: Size(double.infinity,50),
-    // padding: EdgeInsets.symmetric(horizontal: 100),
+    minimumSize: Size(double.infinity, 50),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.all(Radius.circular(12)),
     ),
   );
 
-  void login() async{
-    final email=_emailController.text;
-    final password=_passwordController.text;
-    try{
+  void login() async {
+    final email = _emailController.text;
+    final password = _passwordController.text;
+    try {
       await authService.signInWithEmailPassword(email, password);
-      if(mounted){
-
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=>AuthGate()),);
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HOME()),
+        );
       }
-    }
-    catch(e){
-      if(mounted){
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e")),
+        );
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
-    final screen_height=MediaQuery.of(context).size.height;
+    final screen_height = MediaQuery.of(context).size.height;
     return Scaffold(
       backgroundColor: Colors.white,
       resizeToAvoidBottomInset: false,
@@ -75,10 +81,10 @@ class _LoginState extends State<Login> {
                   textAlign: TextAlign.center,
                   text: TextSpan(
                     style: const TextStyle(
-                        fontSize: 22,
-                        height: 1.5,
-                        color: Colors.black87,
-                        fontFamily: 'Poppins'
+                      fontSize: 22,
+                      height: 1.5,
+                      color: Colors.black87,
+                      fontFamily: 'Poppins',
                     ),
                     children: [
                       const TextSpan(
@@ -100,37 +106,37 @@ class _LoginState extends State<Login> {
                     ],
                   ),
                 ),
-                SizedBox(height: screen_height/15,),
+                SizedBox(height: screen_height / 15),
                 TextFormField(
                   controller: _emailController,
-                  decoration:  buildInputDecoration("Enter your email", Icons.email),
+                  decoration: buildInputDecoration("Enter your email", Icons.email),
                 ),
-                SizedBox(height: 30,),
+                SizedBox(height: 30),
                 TextFormField(
                   obscureText: _obscureText,
                   controller: _passwordController,
                   decoration: buildInputDecoration("Enter the password", Icons.password).copyWith(
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureText ? Icons.visibility_off : Icons.visibility,
-                        ),
-                        onPressed: (){
-                          setState(() {
-                            _obscureText = !_obscureText;
-                          });
-                        },
-                      )
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureText ? Icons.visibility_off : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscureText = !_obscureText;
+                        });
+                      },
+                    ),
                   ),
                 ),
-                SizedBox(height: 30,),
+                SizedBox(height: 30),
                 ElevatedButton(
                   style: raisedButtonStyle,
                   onPressed: login,
                   child: const Text(
                     "Login",
                     style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
                     ),
                   ),
                 ),
@@ -143,8 +149,11 @@ class _LoginState extends State<Login> {
                         splashFactory: NoSplash.splashFactory,
                         overlayColor: WidgetStateProperty.all(Colors.transparent),
                       ),
-                      onPressed: (){
-                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => Signup()));
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => Signup()),
+                        );
                       },
                       child: const Text(
                         "SignUp",

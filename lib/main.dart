@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
       title: 'Flutter Firebase Auth',
       // 🔹 If user is authenticated, route via AuthGate → MainScreen
       // 🔹 Otherwise show Login screen (your existing behavior)
-      home: AuthGate( ),
+      home: Login(),
     );
   }
 }
