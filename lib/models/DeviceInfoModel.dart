@@ -1,10 +1,14 @@
 class DeviceInfo{
-  late final String wifiName;
-  late final String wifiIP;
-  late final String wifiSubmask;
+  late  String? wifiName;
+  late  String wifiIP;
+  late  String? wifiSubmask;
+  late String? port;
+  late String? name;
   DeviceInfo({
-    required this.wifiName,
+    this.wifiName,
     required this.wifiIP,
-    required this.wifiSubmask
+    this.wifiSubmask,
+    this.port,
+    this.name
   });
 }
