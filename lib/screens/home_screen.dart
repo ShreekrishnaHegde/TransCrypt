@@ -23,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("File selected: ${result.files.single.name}"),
+            content: Text("File selected: $selectedFilePath"),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
