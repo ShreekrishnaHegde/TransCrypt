@@ -22,11 +22,6 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Flutter Firebase Auth',
-<<<<<<< HEAD
-      // 🔹 If user is authenticated, route via AuthGate → MainScreen
-      // 🔹 Otherwise show Login screen (your existing behavior)
-=======
->>>>>>> eec0de2393248a309d2e44d4cab85d344c1c81f9
       home: Login(),
     );
   }
