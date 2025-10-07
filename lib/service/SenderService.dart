@@ -15,24 +15,28 @@ class SenderService {
 
   // Save a file chunk to Downloads/TransCrypt
   static Future<void> saveFileChunk(Uint8List chunk, String fileName) async {
-    final extDir = await getExternalStorageDirectory();
-    if (extDir != null) {
-      print("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHhhhh");
-      return;
-    }
     Directory downloads;
+
     if (Platform.isWindows) {
       downloads = Directory('${Platform.environment['USERPROFILE']}\\Downloads\\TransCrypt');
-
     } else {
-      downloads = Directory('${(await getExternalStorageDirectory())!.path}/TransCrypt');
-
+      final extDir = await getExternalStorageDirectory();
+      if (extDir == null) {
+        print("Cannot access external storage directory");
+        return;
+      }
+      downloads = Directory('${extDir.path}/TransCrypt');
     }
-    if (!downloads.existsSync()) downloads.createSync(recursive: true);
+
+    if (!downloads.existsSync()) {
+      downloads.createSync(recursive: true);
+    }
+
     final file = File('${downloads.path}/$fileName');
-    // Uint8List is acceptable directly
     await file.writeAsBytes(chunk, mode: FileMode.append);
+    print("Chunk saved to ${file.path}");
   }
+
 
   static Future<void> share(String filePath, BuildContext context) async {
     bool hasPermission = await RequestDialog().requestStoragePermission();
