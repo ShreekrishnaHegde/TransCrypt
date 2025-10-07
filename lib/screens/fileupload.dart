@@ -47,7 +47,7 @@ class _FileUploadScreenState extends State<FileUploadScreen> {
 
   Future<void> sendFile() async {
     if (_selectedFile == null) return;
-    await SenderService.share(_selectedFile!.path, context);
+    await FileSender.startFileServer(_selectedFile!.path, context);
     setState(() {
       _isUploading = true;
     });

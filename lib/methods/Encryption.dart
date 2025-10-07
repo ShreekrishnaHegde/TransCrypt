@@ -2,38 +2,65 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 
-class Encryption{
-    static Future<String> encryptBytes(
-    Uint8List plainBytes,
-    SimplePublicKey receiverPublicKey,
-    KeyPair senderPrivateKey) async {
+// class Encryption{
+//     static Future<String> encryptBytes(
+//     Uint8List plainBytes,
+//     SimplePublicKey receiverPublicKey,
+//     KeyPair senderPrivateKey) async {
+//
+//       // Generate shared secret using X25519
+//       SecretKey sharedSecretKey = await X25519().sharedSecretKey(
+//         keyPair: senderPrivateKey,
+//         remotePublicKey: receiverPublicKey,
+//       );
+//
+//       // AEAD algorithm
+//       final algo = Xchacha20.poly1305Aead();
+//
+//       // Generate nonce
+//       final nonce = algo.newNonce();
+//
+//       // Encrypt bytes
+//       final secretBox = await algo.encrypt(
+//         plainBytes as List<int>,
+//         secretKey: sharedSecretKey,
+//         nonce: nonce,
+//       );
+//
+//       // Prepare payload
+//       final payload = {
+//         'nonce': base64Encode(secretBox.nonce),
+//         'cipherText': base64Encode(secretBox.cipherText),
+//         'mac': base64Encode(secretBox.mac.bytes),
+//       };
+//
+//       return jsonEncode(payload); // You can send this as a string over HTTP
+//     }
+// }
+class Encrypt {
+  static Future<Map<String, String>> encryptBytes(
+      List<int> data,
+      SimplePublicKey receiverPublicKey,
+      KeyPair senderPrivateKey,
+      ) async {
+    final sharedSecret = await X25519().sharedSecretKey(
+      keyPair: senderPrivateKey,
+      remotePublicKey: receiverPublicKey,
+    );
 
-      // Generate shared secret using X25519
-      SecretKey sharedSecretKey = await X25519().sharedSecretKey(
-        keyPair: senderPrivateKey,
-        remotePublicKey: receiverPublicKey,
-      );
+    final algo = Xchacha20.poly1305Aead();
+    final nonce = algo.newNonce();
 
-      // AEAD algorithm
-      final algo = Xchacha20.poly1305Aead();
+    final secretBox = await algo.encrypt(
+      data,
+      secretKey: sharedSecret,
+      nonce: nonce,
+    );
 
-      // Generate nonce
-      final nonce = algo.newNonce();
-
-      // Encrypt bytes
-      final secretBox = await algo.encrypt(
-        plainBytes as List<int>,
-        secretKey: sharedSecretKey,
-        nonce: nonce,
-      );
-
-      // Prepare payload
-      final payload = {
-        'nonce': base64Encode(secretBox.nonce),
-        'cipherText': base64Encode(secretBox.cipherText),
-        'mac': base64Encode(secretBox.mac.bytes),
-      };
-
-      return jsonEncode(payload); // You can send this as a string over HTTP
-    }
+    return {
+      'nonce': base64Encode(secretBox.nonce),
+      'cipherText': base64Encode(secretBox.cipherText),
+      'mac': base64Encode(secretBox.mac.bytes),
+    };
+  }
 }

@@ -7,19 +7,18 @@ import 'package:transcrypt/RequestDialogue.dart';
 import 'package:transcrypt/methods/Encryption.dart';
 import 'package:transcrypt/methods/keyManaget.dart';
 
-class FileSender {
 
+class FileSender {
   static Future<String?> findIp() async {
     final info = NetworkInfo();
     return await info.getWifiIP() ?? "IP not available";
   }
 
   static Future<void> startFileServer(String filePath, BuildContext context) async {
-    await RequestDialog.requestPermissions();
-
     try {
       final ip = await findIp();
-      final server = await HttpServer.bind(ip, 5051); // different port for file transfer
+
+      final server = await HttpServer.bind(ip, 5051); // separate port for file transfer
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -28,42 +27,37 @@ class FileSender {
           duration: Duration(seconds: 3),
         ),
       );
-
-      // Generate key pair
+      // Generate and store keys
       KeysPair keysPair = await KeysPair.generateKeyPair();
       await KeysPair.storeKeyPairs(keysPair.publicKey, keysPair.privateKey);
+      print("File server public key: ${keysPair.publicKey}");
 
       await for (HttpRequest request in server) {
         final path = request.uri.path;
         final clientIp = request.connectionInfo?.remoteAddress.address;
 
-        // Step 1: Provide server public key
         if (path == '/publicKey') {
           request.response
             ..headers.contentType = ContentType.json
-            ..write(jsonEncode({
-              'public-key': base64Encode(keysPair.publicKey.bytes)
-            }));
+            ..write(jsonEncode({'public-key': base64Encode(keysPair.publicKey.bytes)}));
           await request.response.close();
           continue;
         }
 
-        // Step 2: Validate client request
         bool allow = await RequestDialog.show(context, clientIp!);
         if (!allow) {
           request.response
             ..statusCode = 403
-            ..write("Request Denied");
+            ..write('Request Denied');
           await request.response.close();
           continue;
         }
 
-        // Step 3: Get client public key
         final clientPublicKeyString = request.headers.value('client-public-key');
         if (clientPublicKeyString == null) {
           request.response
             ..statusCode = 400
-            ..write("Missing client public key");
+            ..write("Client Public Key Missing");
           await request.response.close();
           continue;
         }
@@ -73,7 +67,6 @@ class FileSender {
           type: KeyPairType.x25519,
         );
 
-        // Step 4: Stream file in encrypted chunks
         final file = File(filePath);
         if (!await file.exists()) {
           request.response
@@ -83,18 +76,35 @@ class FileSender {
           continue;
         }
 
-        request.response.headers.contentType = ContentType.binary;
+        final fileStream = file.openRead();
+        final chunkSize = 64 * 1024; // 64 KB per chunk
+        final bytes = <int>[];
 
-        final raf = await file.openRead();
-        final chunkSize = 64 * 1024; // 64 KB chunks
-        await for (var chunk in raf) {
-          final encryptedChunk =
-          await Encryption.encryptBytes(chunk, clientPublicKey, keysPair.privateKey);
-          request.response.add(encryptedChunk);
+        await for (final chunk in fileStream) {
+          bytes.addAll(chunk);
+
+          if (bytes.length >= chunkSize) {
+            final payload = await Encrypt.encryptBytes(
+              bytes,
+              clientPublicKey,
+              keysPair.privateKey,
+            );
+            request.response.write("${jsonEncode(payload)}\n"); // newline separates chunks
+            bytes.clear();
+          }
+        }
+
+        // Send remaining bytes if any
+        if (bytes.isNotEmpty) {
+          final payload = await Encrypt.encryptBytes(
+            bytes,
+            clientPublicKey,
+            keysPair.privateKey,
+          );
+          request.response.write("${jsonEncode(payload)}\n");
         }
 
         await request.response.close();
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("File sent to $clientIp"),
@@ -107,8 +117,9 @@ class FileSender {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("File Server Error: $e"),
+          content: Text("File server error: $e"),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
         ),
       );
     }
