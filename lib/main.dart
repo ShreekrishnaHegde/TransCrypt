@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:transcrypt/screens/file_share_receive.dart';
 import 'package:transcrypt/screens/fileupload.dart';
 import 'package:transcrypt/screens/login_screen.dart';
 import 'package:transcrypt/screens/home_screen.dart';
@@ -26,7 +27,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Flutter Firebase Auth',
-      home: const TransCryptApp(),
+      home:  FileTransferPage(),
     );
   }
 }
