@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:transcrypt/screens/home_screen.dart';
+import '../../screens/home_screen.dart';
 import 'package:transcrypt/screens/login_screen.dart';
 import 'package:transcrypt/service/AuthService/AuthService.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
