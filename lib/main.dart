@@ -6,7 +6,7 @@ import 'package:transcrypt/screens/file_share_receive.dart';
 import 'package:transcrypt/screens/fileupload.dart';
 import 'package:transcrypt/screens/login_screen.dart';
 import 'package:transcrypt/screens/home_screen.dart';
-import 'package:transcrypt/screens/share.dart';
+import 'package:transcrypt/screens/file_share_receive.dart';
 
 
 void main() async {

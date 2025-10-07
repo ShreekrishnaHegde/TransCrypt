@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:transcrypt/methods/methods.dart';
 import 'package:transcrypt/models/DeviceInfoModel.dart';
+import 'package:transcrypt/screens/share.dart';
 import 'package:transcrypt/service/SenderService.dart';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+// 2. Add this at the top level (after imports, before your widget class)
+final supabase = Supabase.instance.client;
 
 void main() {
   runApp(const HOME());
@@ -137,7 +143,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             ),
 
             // Profile Overlay
-            if (_showProfile) _buildProfileOverlay(),
+            if (_showProfile) _buildProfileOverlay(_isDarkMode)
           ],
         ),
 
@@ -258,7 +264,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       case 0:
         return _buildHomePage();
       case 1:
-        return _buildSharePage();
+        return TransCryptApp();
       case 2:
         return _buildHistoryPage();
       default:
@@ -507,53 +513,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildSharePage() {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.all(48),
-        decoration: BoxDecoration(
-          color: _isDarkMode
-              ? const Color(0xFF1E293B).withOpacity(0.8)
-              : Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 30,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.share,
-              size: 64,
-              color: _isDarkMode ? Colors.grey[700] : Colors.grey[300],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Share Page',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: _isDarkMode ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'File sharing features will be added here',
-              style: TextStyle(
-                color: _isDarkMode ? Colors.grey[400] : Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildHistoryPage() {
     return Center(
@@ -603,161 +562,9 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildProfileOverlay() {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _showProfile = false;
-        });
-      },
-      child: Container(
-        color: Colors.black.withOpacity(0.5),
-        child: Align(
-          alignment: Alignment.bottomRight,
-          child: Container(
-            margin: const EdgeInsets.only(right: 16, bottom: 100),
-            width: 280,
-            decoration: BoxDecoration(
-              color: _isDarkMode ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Profile Info
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: _isDarkMode
-                            ? Colors.grey[800]!
-                            : Colors.grey[200]!,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF3B82F6), Color(0xFF9333EA)],
-                          ),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'JD',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'John Doe',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: _isDarkMode
-                                    ? Colors.white
-                                    : Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'john@example.com',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _isDarkMode
-                                    ? Colors.grey[400]
-                                    : Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
 
-                // Logout Button
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      // Show logout confirmation
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Logout'),
-                          content: const Text(
-                            'Are you sure you want to logout?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                setState(() {
-                                  _showProfile = false;
-                                });
-                              },
-                              child: const Text(
-                                'Logout',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.logout, color: Colors.red, size: 20),
-                          SizedBox(width: 12),
-                          Text(
-                            'Logout',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
+// 2. Add this at the top level (after imports, before your widget class)
+final supabase = Supabase.instance.client;
   Widget _buildBottomNavBar() {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -848,4 +655,43 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       ),
     );
   }
+}
+
+Widget _buildProfileOverlay(bool _isDarkMode) {
+  return Positioned(
+    top: 80,
+    right: 16,
+    child: Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 300,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Profile',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: _isDarkMode ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'User information and settings will be displayed here',
+              style: TextStyle(
+                color:  Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
