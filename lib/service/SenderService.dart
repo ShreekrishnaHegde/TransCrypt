@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:transcrypt/RequestDialogue.dart';
 import 'package:transcrypt/methods/Encryption.dart';
+import 'package:transcrypt/methods/FIleHistoryManager.dart';
 import 'package:transcrypt/methods/keyManaget.dart';
-
+import 'package:transcrypt/models/FileHistory.dart';
 
 class FileSender {
   static Future<String?> findIp() async {
@@ -27,6 +28,7 @@ class FileSender {
         ),
       );
 
+      // Generate server key pair
       KeysPair keysPair = await KeysPair.generateKeyPair();
       await KeysPair.storeKeyPairs(keysPair.publicKey, keysPair.privateKey);
 
@@ -65,19 +67,20 @@ class FileSender {
           type: KeyPairType.x25519,
         );
 
-        // Sequentially send files
+        // Send each file sequentially
         for (final file in files) {
           if (!await file.exists()) continue;
 
           final fileName = file.uri.pathSegments.last;
           final fileSize = await file.length();
 
-          // Send header (file info)
+          // Send file header
           final header = jsonEncode({"fileName": fileName, "fileSize": fileSize});
           request.response.write("$header\n");
 
           final chunkSize = 64 * 1024;
           final bytes = <int>[];
+
           await for (final chunk in file.openRead()) {
             bytes.addAll(chunk);
             if (bytes.length >= chunkSize) {
@@ -91,6 +94,14 @@ class FileSender {
             final payload = await Encrypt.encryptBytes(bytes, clientPublicKey, keysPair.privateKey);
             request.response.write("${jsonEncode(payload)}\n");
           }
+          await FileHistoryManager.addHistory(FileHistory(
+            fileName: fileName,
+            fileSize: fileSize,
+            fileFormat: fileName.split('.').last,
+            dateTime: DateTime.now(),
+            status: 'Sent',
+            remoteIp: clientIp,
+          ));
         }
 
         await request.response.close();
