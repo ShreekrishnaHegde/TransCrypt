@@ -154,7 +154,6 @@ class _SignupState extends State<Signup> {
                 SizedBox(height: screen_height/50,),
                 buildTextField(label: "Confirm Password", controller: _confirmPasswordController, obscure: true),
                 SizedBox(height: screen_height/50,),
-                buildRoleDropdown(),
                 SizedBox(height: screen_height/50,),
                 ElevatedButton(
                   style: raisedButtonStyle,

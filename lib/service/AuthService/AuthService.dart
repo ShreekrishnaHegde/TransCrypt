@@ -51,7 +51,7 @@ class AuthService{
     required String fullname,
     required String role,
   }) async{
-    final String baseUrl=dotenv.env['API_BASE_URL']!;
+    final String baseUrl=dotenv.env['SUPABASE_URL']!;
     final accessToken=_supabaseClient.auth.currentSession?.accessToken;
     final uri = Uri.parse(
         role == 'Customer'

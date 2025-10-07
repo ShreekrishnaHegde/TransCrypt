@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:transcrypt/screens/register_screen.dart';
+import 'package:transcrypt/service/AuthService/AuthGate.dart';
 import 'package:transcrypt/service/AuthService/AuthService.dart';
 
 class Login extends StatefulWidget {
@@ -69,10 +71,6 @@ class _LoginState extends State<Login> {
             padding: EdgeInsets.all(20),
             child: Column(
               children: [
-                Image.asset(
-                  "assets/icons/logo1.png",
-                  height: screen_height/12,
-                ),
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
@@ -146,7 +144,7 @@ class _LoginState extends State<Login> {
                         overlayColor: WidgetStateProperty.all(Colors.transparent),
                       ),
                       onPressed: (){
-                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignUp()));
+                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => Signup()));
                       },
                       child: const Text(
                         "SignUp",
