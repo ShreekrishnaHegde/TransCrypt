@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
+import 'package:transcrypt/service/SenderService.dart';
 
 void main() {
   runApp(const TransCryptApp());
@@ -46,7 +47,7 @@ class _FileUploadScreenState extends State<FileUploadScreen> {
 
   Future<void> sendFile() async {
     if (_selectedFile == null) return;
-
+    await SenderService.share(_selectedFile!.path, context);
     setState(() {
       _isUploading = true;
     });
