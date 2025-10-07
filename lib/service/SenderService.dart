@@ -14,11 +14,10 @@ class FileSender {
     return await info.getWifiIP() ?? "IP not available";
   }
 
-  static Future<void> startFileServer(String filePath, BuildContext context) async {
+  static Future<void> startFileServerMultiple(List<File> files, BuildContext context) async {
     try {
       final ip = await findIp();
-
-      final server = await HttpServer.bind(ip, 5051); // separate port for file transfer
+      final server = await HttpServer.bind(ip, 5051);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -27,10 +26,9 @@ class FileSender {
           duration: Duration(seconds: 3),
         ),
       );
-      // Generate and store keys
+
       KeysPair keysPair = await KeysPair.generateKeyPair();
       await KeysPair.storeKeyPairs(keysPair.publicKey, keysPair.privateKey);
-      print("File server public key: ${keysPair.publicKey}");
 
       await for (HttpRequest request in server) {
         final path = request.uri.path;
@@ -67,47 +65,38 @@ class FileSender {
           type: KeyPairType.x25519,
         );
 
-        final file = File(filePath);
-        if (!await file.exists()) {
-          request.response
-            ..statusCode = 404
-            ..write("File not found");
-          await request.response.close();
-          continue;
-        }
+        // Sequentially send files
+        for (final file in files) {
+          if (!await file.exists()) continue;
 
-        final fileStream = file.openRead();
-        final chunkSize = 64 * 1024; // 64 KB per chunk
-        final bytes = <int>[];
+          final fileName = file.uri.pathSegments.last;
+          final fileSize = await file.length();
 
-        await for (final chunk in fileStream) {
-          bytes.addAll(chunk);
+          // Send header (file info)
+          final header = jsonEncode({"fileName": fileName, "fileSize": fileSize});
+          request.response.write("$header\n");
 
-          if (bytes.length >= chunkSize) {
-            final payload = await Encrypt.encryptBytes(
-              bytes,
-              clientPublicKey,
-              keysPair.privateKey,
-            );
-            request.response.write("${jsonEncode(payload)}\n"); // newline separates chunks
-            bytes.clear();
+          final chunkSize = 64 * 1024;
+          final bytes = <int>[];
+          await for (final chunk in file.openRead()) {
+            bytes.addAll(chunk);
+            if (bytes.length >= chunkSize) {
+              final payload = await Encrypt.encryptBytes(bytes, clientPublicKey, keysPair.privateKey);
+              request.response.write("${jsonEncode(payload)}\n");
+              bytes.clear();
+            }
           }
-        }
 
-        // Send remaining bytes if any
-        if (bytes.isNotEmpty) {
-          final payload = await Encrypt.encryptBytes(
-            bytes,
-            clientPublicKey,
-            keysPair.privateKey,
-          );
-          request.response.write("${jsonEncode(payload)}\n");
+          if (bytes.isNotEmpty) {
+            final payload = await Encrypt.encryptBytes(bytes, clientPublicKey, keysPair.privateKey);
+            request.response.write("${jsonEncode(payload)}\n");
+          }
         }
 
         await request.response.close();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("File sent to $clientIp"),
+            content: Text("Files sent to $clientIp"),
             duration: Duration(seconds: 2),
           ),
         );
