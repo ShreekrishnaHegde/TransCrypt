@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:permission_handler/permission_handler.dart';
 class RequestDialog {
   static Future<bool> show(BuildContext context, String ip) async {
     return showDialog<bool>(
@@ -20,5 +20,18 @@ class RequestDialog {
         ],
       ),
     ).then((value) => value ?? false);
+  }
+  Future<bool> requestStoragePermission() async {
+    if (await Permission.manageExternalStorage.isGranted) {
+      return true;
+    }
+
+    final status = await Permission.manageExternalStorage.request();
+
+    if (status.isGranted) return true;
+
+    // If denied, open settings
+    await openAppSettings();
+    return false;
   }
 }
