@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:transcrypt/methods/methods.dart';
 import 'package:transcrypt/models/DeviceInfoModel.dart';
-import 'package:transcrypt/screens/share.dart';
+import 'package:transcrypt/screens/file_share_speed.dart';
 import 'package:transcrypt/service/SenderService.dart';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // 2. Add this at the top level (after imports, before your widget class)
@@ -264,7 +263,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       case 0:
         return _buildHomePage();
       case 1:
-        return TransCryptApp();
+        return FileTransferPage();
       case 2:
         return _buildHistoryPage();
       default:
