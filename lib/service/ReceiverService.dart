@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:cryptography/cryptography.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:transcrypt/methods/Decryption.dart';
+import 'package:transcrypt/methods/keyManaget.dart';
 import 'package:transcrypt/models/DeviceInfoModel.dart';
 
 class ReceiverService{
@@ -61,7 +63,8 @@ class ReceiverService{
       return null;
     }
   }
-  static Future<void> downloadFile(String serverIp, String saveFileName, BuildContext context) async {
+  static Future<void> downloadFile(
+      String serverIp, String saveFileName, BuildContext context) async {
     try {
       final serverPublicKey = await getServerPublicKey(serverIp);
       if (serverPublicKey == null) throw Exception("Server public key not found");
@@ -71,10 +74,8 @@ class ReceiverService{
       await KeysPair.storeKeyPairs(clientKeys.publicKey, clientKeys.privateKey);
 
       final uri = Uri.parse('http://$serverIp:$SERVER_PORT');
-      final headers = {'client-public-key': base64Encode(clientKeys.publicKey.bytes)};
-
       final request = await HttpClient().getUrl(uri);
-      headers.forEach((k, v) => request.headers.add(k, v));
+      request.headers.add('client-public-key', base64Encode(clientKeys.publicKey.bytes));
       final response = await request.close();
 
       if (response.statusCode != 200) throw Exception("Failed to connect");
@@ -84,25 +85,47 @@ class ReceiverService{
       if (Platform.isWindows) {
         downloads = Directory('${Platform.environment['USERPROFILE']}\\Downloads\\TransCrypt');
       } else {
-        downloads = Directory('${(await getExternalStorageDirectory())!.path}/TransCrypt');
+        final extDir = await getExternalStorageDirectory();
+        if (extDir == null) throw Exception("External storage not available");
+        downloads = Directory('${extDir.path}/TransCrypt');
       }
+
       if (!downloads.existsSync()) downloads.createSync(recursive: true);
+
       final file = File('${downloads.path}/$saveFileName');
       if (file.existsSync()) file.deleteSync();
 
-      // Read chunks
-      await for (Uint8List chunk in response) {
-        final decryptedChunk = await Decryption.decryptBytes(chunk, serverPublicKey, clientKeys.privateKey);
-        await file.writeAsBytes(decryptedChunk, mode: FileMode.append);
+      // Open file for synchronous writing
+      final raf = file.openSync(mode: FileMode.write);
+
+      // Read and decrypt chunks
+      await for (List<int> chunk in response) {
+        final decryptedChunk = await Decryption.decryptBytes(
+          chunk as String, // keep as Uint8List
+          serverPublicKey,
+          clientKeys.privateKey,
+        );
+
+        // Write decrypted bytes to file
+        raf.writeFromSync(decryptedChunk as List<int>);
       }
 
+      raf.closeSync();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("File downloaded: $saveFileName"), backgroundColor: Colors.green),
+        SnackBar(
+          content: Text("File downloaded: $saveFileName"),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Download error: $e"), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text("Download error: $e"),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
+
 }

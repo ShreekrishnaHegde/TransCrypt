@@ -3,7 +3,9 @@ import 'dart:io';
 import 'dart:nativewrappers/_internal/vm/lib/typed_data_patch.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:transcrypt/RequestDialogue.dart';
+import 'package:transcrypt/methods/Encryption.dart';
 import 'package:transcrypt/methods/keyManaget.dart';
 import 'package:transcrypt/methods/methods.dart';
 import 'package:transcrypt/models/DeviceInfoModel.dart';
@@ -19,7 +21,7 @@ class SenderService{
     }
     if (!downloads.existsSync()) downloads.createSync(recursive: true);
     final file = File('${downloads.path}/$fileName');
-    await file.writeAsBytes(chunk, mode: FileMode.append);
+    await file.writeAsBytes(chunk as List<int>, mode: FileMode.append);
   }
   static Future<void> share(String filePath,BuildContext context) async {
 
@@ -90,7 +92,7 @@ class SenderService{
         }
         final clientPubKey = SimplePublicKey(base64Decode(clientPubString), type: KeyPairType.x25519);
         // Verify client signature before asking user
-        final isVerified = await verifyClientSignature(clientPubKey, base64Decode(clientSignature));
+        final isVerified = await verifyClientSignature(clientPubKey, base64Decode(clientSignature) as Uint8List);
         if (!isVerified) {
           request.response
             ..statusCode = 403
@@ -116,11 +118,11 @@ class SenderService{
         while (offset < fileLength) {
           final size = (offset + chunkSize > fileLength) ? fileLength - offset : chunkSize;
           final chunk = raf.readSync(size);
-          final encryptedChunk = await Encrypt.encryptBytes(chunk, clientPubKey, keysPair.privateKey);
+          final encryptedChunk = await Encryption.encryptBytes(chunk as Uint8List, clientPubKey, keysPair.privateKey);
 
           request.response
             ..headers.contentType = ContentType.binary
-            ..add(encryptedChunk); // send chunk
+            ..add(encryptedChunk as List<int>); // send chunk
           offset += size;
         }
         await request.response.close();

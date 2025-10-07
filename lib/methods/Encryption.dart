@@ -22,7 +22,7 @@ class Encryption{
 
       // Encrypt bytes
       final secretBox = await algo.encrypt(
-        plainBytes,
+        plainBytes as List<int>,
         secretKey: sharedSecretKey,
         nonce: nonce,
       );
