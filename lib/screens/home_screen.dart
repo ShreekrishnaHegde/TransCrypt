@@ -1,14 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:transcrypt/methods/methods.dart';
+import 'package:transcrypt/models/DeviceInfoModel.dart';
 import 'package:transcrypt/service/SenderService.dart';
 
 void main() {
   runApp(const HOME());
 }
 
-class HOME extends StatelessWidget {
+class HOME extends StatefulWidget {
+
   const HOME({super.key});
 
+  @override
+  State<HOME> createState() => _HOMEState();
+}
+
+class _HOMEState extends State<HOME> {
+  late DeviceInfo deviceInfo;
+  Future<void> _loadDeviceInfo() async {
+    deviceInfo = await Methods.getDeviceInfo();
+    setState(() {}); // update UI if needed
+  }
+  @override
+  void initState(){
+    super.initState();
+    _loadDeviceInfo();
+  }
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -42,7 +60,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   bool _showProfile = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-
+  late DeviceInfo deviceInfo;
+  bool _deviceInfoLoaded = false;
   @override
   void initState() {
     super.initState();
@@ -54,6 +73,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     _animationController.forward();
+    _loadDeviceInfo();
+  }
+  Future<void> _loadDeviceInfo() async {
+    deviceInfo = await Methods.getDeviceInfo();
+    setState(() {
+      _deviceInfoLoaded = true;
+    });
   }
 
   @override
@@ -337,30 +363,28 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                 _buildInfoCard(
                   Icons.wifi,
                   'Network',
-                  'Home_WiFi_5G',
+                  _deviceInfoLoaded ? deviceInfo.wifiName! : 'Loading...',
                   const Color(0xFF3B82F6),
                 ),
-                const SizedBox(height: 12),
                 _buildInfoCard(
                   Icons.tag,
                   'IP Address',
-                  '192.168.1.105',
+                  _deviceInfoLoaded ? deviceInfo.wifiIP : 'Loading...',
                   const Color(0xFF9333EA),
                 ),
-                const SizedBox(height: 12),
                 _buildInfoCard(
                   Icons.settings_ethernet,
                   'Port Number',
-                  '8080',
+                  _deviceInfoLoaded ? deviceInfo.port.toString() : 'Loading...',
                   const Color(0xFF6366F1),
                 ),
-                const SizedBox(height: 12),
                 _buildInfoCard(
                   Icons.devices,
                   'Device Name',
-                  "John's MacBook Pro",
+                  _deviceInfoLoaded ? deviceInfo.name! : 'Loading...',
                   const Color(0xFFEC4899),
                 ),
+
               ],
             ),
           ),
