@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:transcrypt/screens/fileupload.dart';
 import 'package:transcrypt/screens/login_screen.dart';
 import 'package:transcrypt/screens/home_screen.dart';
-import 'package:transcrypt/screens/filereciver.dart';
+import 'package:transcrypt/screens/share.dart';
 
 
 void main() async {
@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Flutter Firebase Auth',
-      home: const TransCryptApp1(),
+      home: const TransCryptApp(),
     );
   }
 }

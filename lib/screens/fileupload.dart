@@ -5,11 +5,11 @@ import 'package:path/path.dart' as path;
 import 'package:transcrypt/service/SenderService.dart';
 
 void main() {
-  runApp(const TransCryptApp());
+  runApp(const TransCryptApp2());
 }
 
-class TransCryptApp extends StatelessWidget {
-  const TransCryptApp({Key? key}) : super(key: key);
+class TransCryptApp2 extends StatelessWidget {
+  const TransCryptApp2({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
