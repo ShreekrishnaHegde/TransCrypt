@@ -2,11 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:transcrypt/screens/file_share_receive.dart';
-import 'package:transcrypt/screens/fileupload.dart';
-import 'package:transcrypt/screens/login_screen.dart';
-import 'package:transcrypt/screens/home_screen.dart';
-import 'package:transcrypt/screens/share.dart';
+import 'package:transcrypt/screens/file_share.dart';
+
 
 
 void main() async {

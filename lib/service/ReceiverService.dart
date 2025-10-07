@@ -9,9 +9,12 @@ import 'package:transcrypt/models/DeviceInfoModel.dart';
 class FileReceiver {
   static const int SERVER_PORT = 5051;
 
-  static Future<void> downloadMultipleFiles(String serverIp, String saveDir) async {
+  static Future<void> downloadMultipleFiles(
+      String serverIp, String saveDir,
+      {Function(double speed)? onSpeedUpdate}) async {
     try {
-      final publicResponse = await http.get(Uri.parse('http://$serverIp:$SERVER_PORT/publicKey'));
+      final publicResponse =
+      await http.get(Uri.parse('http://$serverIp:$SERVER_PORT/publicKey'));
       final serverPublicKey = SimplePublicKey(
         base64Decode(jsonDecode(publicResponse.body)['public-key']),
         type: KeyPairType.x25519,
@@ -28,16 +31,20 @@ class FileReceiver {
 
       File? currentFile;
       IOSink? sink;
+      int totalBytes = 0;
+      final stopwatch = Stopwatch()..start();
 
       await for (var line in response.transform(utf8.decoder).transform(const LineSplitter())) {
         final decoded = jsonDecode(line);
 
-        // Check if it's a header
+        // Check for file header
         if (decoded is Map && decoded.containsKey("fileName")) {
           await sink?.close();
           final fileName = decoded['fileName'];
           currentFile = File('$saveDir/$fileName');
           sink = currentFile.openWrite();
+          totalBytes = 0;
+          stopwatch.reset();
           continue;
         }
 
@@ -45,6 +52,15 @@ class FileReceiver {
         if (currentFile != null && sink != null) {
           final decryptedChunk = await Decryption.decryptBytes(line, serverPublicKey, keysPair.privateKey);
           sink.add(decryptedChunk);
+
+          // Update speed
+          totalBytes += decryptedChunk.length;
+          if (stopwatch.elapsedMilliseconds >= 500) { // update every 0.5s
+            final speed = totalBytes / stopwatch.elapsedMilliseconds * 1000; // bytes/sec
+            if (onSpeedUpdate != null) onSpeedUpdate(speed);
+            totalBytes = 0;
+            stopwatch.reset();
+          }
         }
       }
 
@@ -54,6 +70,7 @@ class FileReceiver {
       print("File download error: $e");
     }
   }
+
 
   static String getSubnet(String ip){
     final parts=ip.split('.');
