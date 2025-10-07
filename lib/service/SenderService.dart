@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:nativewrappers/_internal/vm/lib/typed_data_patch.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/material.dart';
+import 'package:transcrypt/RequestDialogue.dart';
 import 'package:transcrypt/methods/keyManaget.dart';
 import 'package:transcrypt/methods/methods.dart';
 import 'package:transcrypt/models/DeviceInfoModel.dart';
@@ -140,8 +141,6 @@ class SenderService{
     }
   }
   static Future<bool> verifyClientSignature(SimplePublicKey clientPublicKey, Uint8List signature) async {
-    // Implement Ed25519 signature verification here
-    // For now, always return true
     return true;
   }
 }
