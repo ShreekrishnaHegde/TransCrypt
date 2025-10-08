@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:transcrypt/methods/methods.dart';
 import 'package:transcrypt/models/DeviceInfoModel.dart';
-import 'package:transcrypt/screens/file_share_speed.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:transcrypt/screens/History.dart';
+import 'package:transcrypt/screens/file_share_speed.dart';
+
 
 // Supabase client
 final supabase = Supabase.instance.client;
@@ -278,7 +280,7 @@ class _MainScreenState extends State<MainScreen>
       case 0:
         return _buildHomePage();
       case 1:
-        return TransCryptApp();
+        return FileTransferPage();
       case 2:
         return FileHistoryPage();
       default:
