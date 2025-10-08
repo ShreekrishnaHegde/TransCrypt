@@ -278,7 +278,7 @@ class _MainScreenState extends State<MainScreen>
       case 0:
         return _buildHomePage();
       case 1:
-        return TransCryptApp();
+        return FileTransferPage();
       case 2:
         return FileHistoryPage();
       default:
