@@ -10,116 +10,118 @@ import 'package:transcrypt/methods/keyManaget.dart';
 class FileSender {
   static Future<String?> findIp() async {
     final info = NetworkInfo();
-    return await info.getWifiIP() ?? "Unknown IP";
+    return await info.getWifiIP() ?? "IP not available";
   }
 
-  static Future<void> startFileServerMultiple(
-      List<File> files, BuildContext context) async {
-    HttpServer? server;
-
+  static Future<void> startFileServerMultiple(List<File> files, BuildContext context) async {
     try {
+      final server = await HttpServer.bind(InternetAddress.anyIPv4, 5051);
       final ip = await findIp();
-      server = await HttpServer.bind(InternetAddress.anyIPv4, 5051);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Server running at http://$ip:5051"),
+          content: Text("File server running at http://$ip:5051"),
           backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
         ),
       );
 
-      final keysPair = await KeysPair.generateKeyPair();
+      KeysPair keysPair = await KeysPair.generateKeyPair();
       await KeysPair.storeKeyPairs(keysPair.publicKey, keysPair.privateKey);
 
       await for (HttpRequest request in server) {
         final path = request.uri.path;
         final clientIp = request.connectionInfo?.remoteAddress.address;
 
+        // Serve public key
         if (path == '/publicKey') {
-          request.response.headers.contentType = ContentType.json;
-          request.response.write(jsonEncode({
-            'public-key': base64Encode(keysPair.publicKey.bytes),
-          }));
+          request.response
+            ..headers.contentType = ContentType.json
+            ..write(jsonEncode({'public-key': base64Encode(keysPair.publicKey.bytes)}));
           await request.response.close();
           continue;
         }
 
-        if (path != '/file') {
-          request.response.statusCode = HttpStatus.notFound;
-          await request.response.close();
-          continue;
-        }
-
-        final allowed = await RequestDialog.show(context, clientIp ?? "Unknown");
-        if (!allowed) {
+        // Ask user to allow request
+        bool allow = await RequestDialog.show(context, clientIp!);
+        if (!allow) {
           request.response
             ..statusCode = 403
-            ..write("Access denied");
+            ..write('Request Denied');
           await request.response.close();
           continue;
         }
 
-        final clientPubKeyStr = request.headers.value('client-public-key');
-        if (clientPubKeyStr == null) {
+        final clientPublicKeyString = request.headers.value('client-public-key');
+        if (clientPublicKeyString == null) {
           request.response
             ..statusCode = 400
-            ..write("Missing client public key");
+            ..write("Client Public Key Missing");
           await request.response.close();
           continue;
         }
 
         final clientPublicKey = SimplePublicKey(
-          base64Decode(clientPubKeyStr),
+          base64Decode(clientPublicKeyString),
           type: KeyPairType.x25519,
         );
 
-        for (final file in files) {
-          if (!await file.exists()) continue;
+        // Only respond to /file endpoint
+        if (path == '/file') {
+          request.response.headers.contentType = ContentType.text;
 
-          final fileName = file.uri.pathSegments.last;
-          final fileSize = await file.length();
+          for (final file in files) {
+            if (!await file.exists()) continue;
 
-          final header = jsonEncode({
-            "fileName": fileName,
-            "fileSize": fileSize,
-          });
-          request.response.writeln(header);
+            final fileName = file.uri.pathSegments.last;
+            final fileSize = await file.length();
 
-          final chunkSize = 64 * 1024;
-          final reader = file.openRead();
-          final buffer = <int>[];
+            // Send file header
+            request.response.write(jsonEncode({"fileName": fileName, "fileSize": fileSize}) + '\n');
 
-          await for (final chunk in reader) {
-            buffer.addAll(chunk);
-            if (buffer.length >= chunkSize) {
-              final encrypted = await Encrypt.encryptBytes(
-                  buffer, clientPublicKey, keysPair.privateKey);
-              request.response.writeln(jsonEncode(encrypted));
-              buffer.clear();
+            final chunkSize = 64 * 1024;
+            final stream = file.openRead();
+            final buffer = <int>[];
+
+            await for (final chunk in stream) {
+              buffer.addAll(chunk);
+              if (buffer.length >= chunkSize) {
+                final payload = await Encrypt.encryptBytes(buffer, clientPublicKey, keysPair.privateKey);
+                request.response.write(jsonEncode(payload) + '\n');
+                buffer.clear();
+              }
+            }
+
+            if (buffer.isNotEmpty) {
+              final payload = await Encrypt.encryptBytes(buffer, clientPublicKey, keysPair.privateKey);
+              request.response.write(jsonEncode(payload) + '\n');
             }
           }
 
-          if (buffer.isNotEmpty) {
-            final encrypted = await Encrypt.encryptBytes(
-                buffer, clientPublicKey, keysPair.privateKey);
-            request.response.writeln(jsonEncode(encrypted));
-          }
+          await request.response.close();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Files sent to $clientIp"),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } else {
+          request.response
+            ..statusCode = 404
+            ..write("Endpoint not found");
+          await request.response.close();
         }
-
-        await request.response.close();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Files sent to $clientIp")),
-        );
       }
+
+      await KeysPair.deleteKeysPair();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Server error: $e"),
+          content: Text("File server error: $e"),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
         ),
       );
-    } finally {
-      await server?.close(force: true);
-      await KeysPair.deleteKeysPair();
     }
   }
 }
