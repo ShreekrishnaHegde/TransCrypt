@@ -2,116 +2,119 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
+import 'package:network_info_plus/network_info_plus.dart';
 import 'package:transcrypt/methods/Decryption.dart';
-import 'package:transcrypt/methods/FIleHistoryManager.dart';
 import 'package:transcrypt/methods/keyManaget.dart';
 import 'package:transcrypt/models/DeviceInfoModel.dart';
-import 'package:transcrypt/models/FileHistory.dart';
 
 class FileReceiver {
-  static const int SERVER_PORT = 5051;
+  static const int serverPort = 5051;
 
-  static Future<void> downloadMultipleFiles(
-      String serverIp, String saveDir,
-      {Function(double speed)? onSpeedUpdate}) async {
+  static Future<void> downloadMultipleFiles(String serverIp, String saveDir) async {
     try {
-      final publicResponse =
-      await http.get(Uri.parse('http://$serverIp:$SERVER_PORT/publicKey'));
-      final serverPublicKey = SimplePublicKey(
-        base64Decode(jsonDecode(publicResponse.body)['public-key']),
+      final pubRes =
+      await http.get(Uri.parse('http://$serverIp:$serverPort/publicKey'));
+      if (pubRes.statusCode != 200) throw "Server key unavailable";
+
+      final serverPubKey = SimplePublicKey(
+        base64Decode(jsonDecode(pubRes.body)['public-key']),
         type: KeyPairType.x25519,
       );
 
-      KeysPair keysPair = await KeysPair.generateKeyPair();
+      final keysPair = await KeysPair.generateKeyPair();
       await KeysPair.storeKeyPairs(keysPair.publicKey, keysPair.privateKey);
 
-      final request = await HttpClient().getUrl(Uri.parse('http://$serverIp:$SERVER_PORT/file'));
-      request.headers.add('client-public-key', base64Encode(keysPair.publicKey.bytes));
+      final client = HttpClient();
+      final req = await client.getUrl(Uri.parse('http://$serverIp:$serverPort/file'));
+      req.headers.add('client-public-key', base64Encode(keysPair.publicKey.bytes));
 
-      final response = await request.close();
-      if (response.statusCode != 200) return;
+      final res = await req.close();
+      if (res.statusCode != 200) throw "Server rejected connection";
 
       File? currentFile;
       IOSink? sink;
-      int totalBytes = 0;
-      final stopwatch = Stopwatch()..start();
 
-      await for (var line in response.transform(utf8.decoder).transform(const LineSplitter())) {
+      await for (final line in res.transform(utf8.decoder).transform(LineSplitter())) {
         final decoded = jsonDecode(line);
 
-        // Check for file header
-        if (decoded is Map && decoded.containsKey("fileName")) {
+        // header
+        if (decoded is Map && decoded.containsKey('fileName')) {
           await sink?.close();
           final fileName = decoded['fileName'];
           currentFile = File('$saveDir/$fileName');
           sink = currentFile.openWrite();
-          totalBytes = 0;
-          stopwatch.reset();
           continue;
         }
 
-        // Encrypted chunk
+        // encrypted chunk
         if (currentFile != null && sink != null) {
-          final decryptedChunk = await Decryption.decryptBytes(line, serverPublicKey, keysPair.privateKey);
-          sink.add(decryptedChunk);
-
-          // Update speed
-          totalBytes += decryptedChunk.length;
-          if (stopwatch.elapsedMilliseconds >= 500) { // update every 0.5s
-            final speed = totalBytes / stopwatch.elapsedMilliseconds * 1000; // bytes/sec
-            if (onSpeedUpdate != null) onSpeedUpdate(speed);
-            totalBytes = 0;
-            stopwatch.reset();
-          }
+          final decrypted = await Decryption.decryptBytes(
+              decoded, serverPubKey, keysPair.privateKey);
+          sink.add(decrypted);
         }
       }
 
       await sink?.close();
-
-      await FileHistoryManager.addHistory(FileHistory(
-        fileName: currentFile!.uri.pathSegments.last,
-        fileSize: await currentFile.length(),
-        fileFormat: currentFile.uri.pathSegments.last.split('.').last,
-        dateTime: DateTime.now(),
-        status: 'Received',
-        remoteIp: serverIp,
-      ));
-
-      print("All files saved to $saveDir");
+      print("Files saved to $saveDir");
     } catch (e) {
-      print("File download error: $e");
+      print("Download failed: $e");
     }
   }
 
-
-  static String getSubnet(String ip){
-    final parts=ip.split('.');
+  static String getSubnet(String ip) {
+    final parts = ip.split('.');
     return '${parts[0]}.${parts[1]}.${parts[2]}';
   }
+
   static Future<List<DeviceInfo>> scanForServers(String subnet) async {
-    List<DeviceInfo> devices = [];
-    List<Future<DeviceInfo?>> futures = [];
-    for (int i =1;i<= 255;i++){
-      final ip = '$subnet.$i';
-      futures.add(checkSingleDevice(ip, SERVER_PORT));
-    }
-    final results = await Future.wait(futures);
-    for (var device in results) {
-      if (device != null) devices.add(device);
+    final info = NetworkInfo();
+    final localIp = await info.getWifiIP();
+    if (localIp == null) return [];
+
+    final devices = <DeviceInfo>[];
+    final futures = <Future<DeviceInfo?>>[];
+
+    // Limit concurrency to avoid lag
+    const maxConcurrent = 40;
+    final ports = List.generate(255, (i) => i + 1);
+
+    for (int i = 0; i < ports.length; i += maxConcurrent) {
+      final batch = ports.skip(i).take(maxConcurrent);
+      for (final j in batch) {
+        final ip = '$subnet.$j';
+
+        // Skip own device
+        if (ip == localIp) continue;
+
+        futures.add(checkSingleDevice(ip, serverPort));
+      }
+
+      final results = await Future.wait(futures);
+      devices.addAll(results.whereType<DeviceInfo>());
+      futures.clear();
     }
 
     return devices;
   }
-  static Future<DeviceInfo?> checkSingleDevice(String ip,int port)async{
-    try{
-      final scoket=await Socket.connect(ip, port,timeout: Duration(milliseconds: 300));
-      await scoket.close();
-      return DeviceInfo(wifiIP: ip);
+
+  static Future<DeviceInfo?> checkSingleDevice(String ip, int port) async {
+    try {
+      final socket =
+      await Socket.connect(ip, port, timeout: const Duration(milliseconds: 300));
+      await socket.close();
+
+      // Verify it's a TransCrypt server (check /publicKey)
+      final response = await HttpClient()
+          .getUrl(Uri.parse('http://$ip:$port/publicKey'))
+          .then((req) => req.close());
+
+      if (response.statusCode == 200) {
+        return DeviceInfo(wifiIP: ip);
+      }
+    } catch (_) {
+      // Ignore unreachable hosts
     }
-    catch(e){
-      return null;
-    }
+    return null;
   }
 
-  static Future<void> downloadFile(String wifiIP, String saveResult) async {}
 }

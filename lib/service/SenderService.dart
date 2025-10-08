@@ -5,31 +5,29 @@ import 'package:flutter/material.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:transcrypt/RequestDialogue.dart';
 import 'package:transcrypt/methods/Encryption.dart';
-import 'package:transcrypt/methods/FIleHistoryManager.dart';
 import 'package:transcrypt/methods/keyManaget.dart';
-import 'package:transcrypt/models/FileHistory.dart';
 
 class FileSender {
   static Future<String?> findIp() async {
     final info = NetworkInfo();
-    return await info.getWifiIP() ?? "IP not available";
+    return await info.getWifiIP() ?? "Unknown IP";
   }
 
-  static Future<void> startFileServerMultiple(List<File> files, BuildContext context) async {
+  static Future<void> startFileServerMultiple(
+      List<File> files, BuildContext context) async {
+    HttpServer? server;
+
     try {
       final ip = await findIp();
-      final server = await HttpServer.bind(ip, 5051);
-
+      server = await HttpServer.bind(InternetAddress.anyIPv4, 5051);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("File server running at http://$ip:5051"),
+          content: Text("Server running at http://$ip:5051"),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
         ),
       );
 
-      // Generate server key pair
-      KeysPair keysPair = await KeysPair.generateKeyPair();
+      final keysPair = await KeysPair.generateKeyPair();
       await KeysPair.storeKeyPairs(keysPair.publicKey, keysPair.privateKey);
 
       await for (HttpRequest request in server) {
@@ -37,93 +35,91 @@ class FileSender {
         final clientIp = request.connectionInfo?.remoteAddress.address;
 
         if (path == '/publicKey') {
-          request.response
-            ..headers.contentType = ContentType.json
-            ..write(jsonEncode({'public-key': base64Encode(keysPair.publicKey.bytes)}));
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(jsonEncode({
+            'public-key': base64Encode(keysPair.publicKey.bytes),
+          }));
           await request.response.close();
           continue;
         }
 
-        bool allow = await RequestDialog.show(context, clientIp!);
-        if (!allow) {
+        if (path != '/file') {
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+          continue;
+        }
+
+        final allowed = await RequestDialog.show(context, clientIp ?? "Unknown");
+        if (!allowed) {
           request.response
             ..statusCode = 403
-            ..write('Request Denied');
+            ..write("Access denied");
           await request.response.close();
           continue;
         }
 
-        final clientPublicKeyString = request.headers.value('client-public-key');
-        if (clientPublicKeyString == null) {
+        final clientPubKeyStr = request.headers.value('client-public-key');
+        if (clientPubKeyStr == null) {
           request.response
             ..statusCode = 400
-            ..write("Client Public Key Missing");
+            ..write("Missing client public key");
           await request.response.close();
           continue;
         }
 
         final clientPublicKey = SimplePublicKey(
-          base64Decode(clientPublicKeyString),
+          base64Decode(clientPubKeyStr),
           type: KeyPairType.x25519,
         );
 
-        // Send each file sequentially
         for (final file in files) {
           if (!await file.exists()) continue;
 
           final fileName = file.uri.pathSegments.last;
           final fileSize = await file.length();
 
-          // Send file header
-          final header = jsonEncode({"fileName": fileName, "fileSize": fileSize});
-          request.response.write("$header\n");
+          final header = jsonEncode({
+            "fileName": fileName,
+            "fileSize": fileSize,
+          });
+          request.response.writeln(header);
 
           final chunkSize = 64 * 1024;
-          final bytes = <int>[];
+          final reader = file.openRead();
+          final buffer = <int>[];
 
-          await for (final chunk in file.openRead()) {
-            bytes.addAll(chunk);
-            if (bytes.length >= chunkSize) {
-              final payload = await Encrypt.encryptBytes(bytes, clientPublicKey, keysPair.privateKey);
-              request.response.write("${jsonEncode(payload)}\n");
-              bytes.clear();
+          await for (final chunk in reader) {
+            buffer.addAll(chunk);
+            if (buffer.length >= chunkSize) {
+              final encrypted = await Encrypt.encryptBytes(
+                  buffer, clientPublicKey, keysPair.privateKey);
+              request.response.writeln(jsonEncode(encrypted));
+              buffer.clear();
             }
           }
 
-          if (bytes.isNotEmpty) {
-            final payload = await Encrypt.encryptBytes(bytes, clientPublicKey, keysPair.privateKey);
-            request.response.write("${jsonEncode(payload)}\n");
+          if (buffer.isNotEmpty) {
+            final encrypted = await Encrypt.encryptBytes(
+                buffer, clientPublicKey, keysPair.privateKey);
+            request.response.writeln(jsonEncode(encrypted));
           }
-          await FileHistoryManager.addHistory(FileHistory(
-            fileName: fileName,
-            fileSize: fileSize,
-            fileFormat: fileName.split('.').last,
-            dateTime: DateTime.now(),
-            status: 'Sent',
-            remoteIp: clientIp,
-          ));
         }
 
         await request.response.close();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Files sent to $clientIp"),
-            duration: Duration(seconds: 2),
-          ),
+          SnackBar(content: Text("Files sent to $clientIp")),
         );
       }
-
-      await KeysPair.deleteKeysPair();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("File server error: $e"),
+          content: Text("Server error: $e"),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
         ),
       );
+    } finally {
+      await server?.close(force: true);
+      await KeysPair.deleteKeysPair();
     }
   }
-
-  static Future<void> startFileServer(String s, BuildContext context) async {}
 }
