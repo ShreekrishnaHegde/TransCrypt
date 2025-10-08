@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:cryptography/cryptography.dart';
 import 'package:http/http.dart' as http;
 import 'package:transcrypt/methods/Decryption.dart';
+import 'package:transcrypt/methods/FIleHistoryManager.dart';
 import 'package:transcrypt/methods/keyManaget.dart';
 import 'package:transcrypt/models/DeviceInfoModel.dart';
+import 'package:transcrypt/models/FileHistory.dart';
 
 class FileReceiver {
   static const int SERVER_PORT = 5051;
@@ -65,6 +67,16 @@ class FileReceiver {
       }
 
       await sink?.close();
+
+      await FileHistoryManager.addHistory(FileHistory(
+        fileName: currentFile!.uri.pathSegments.last,
+        fileSize: await currentFile.length(),
+        fileFormat: currentFile.uri.pathSegments.last.split('.').last,
+        dateTime: DateTime.now(),
+        status: 'Received',
+        remoteIp: serverIp,
+      ));
+
       print("All files saved to $saveDir");
     } catch (e) {
       print("File download error: $e");
