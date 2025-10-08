@@ -37,23 +37,6 @@ class TransCryptHome extends StatefulWidget {
 }
 
 class _TransCryptHomeState extends State<TransCryptHome> with TickerProviderStateMixin {
-  bool _scanningDevices = false;
-  late AnimationController _searchController;
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
 
   Widget _buildButton({
     required String label,
@@ -113,79 +96,6 @@ class _TransCryptHomeState extends State<TransCryptHome> with TickerProviderStat
     );
   }
 
-  Widget _buildScanningAnimation() {
-    return AnimatedBuilder(
-      animation: _searchController,
-      builder: (context, child) {
-        return Container(
-          margin: const EdgeInsets.only(top: 40),
-          child: Column(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  ...List.generate(3, (index) {
-                    return Transform.scale(
-                      scale: 0.5 + (_searchController.value * 0.5) + (index * 0.2),
-                      child: Container(
-                        width: 150,
-                        height: 150,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF10B981).withOpacity(0.3 - (index * 0.1)),
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF10B981).withOpacity(0.3),
-                          blurRadius: 20,
-                          spreadRadius: 5,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.radar,
-                      size: 50,
-                      color: Color(0xFF10B981),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Scanning for devices...',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Looking for nearby devices',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[400],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -239,23 +149,16 @@ class _TransCryptHomeState extends State<TransCryptHome> with TickerProviderStat
                       icon: Icons.download_rounded,
                       color: const Color(0xFF10B981),
                       onTap: () {
-                        setState(() => _scanningDevices = true);
-                        Future.delayed(const Duration(seconds: 2), () {
-                          if (mounted) {
-                            setState(() => _scanningDevices = false);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const ReceiverScreen(),
-                              ),
-                            );
-                          }
-                        });
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ReceiverScreen(),
+                          ),
+                        );
                       },
                     ),
                   ],
                 ),
-                if (_scanningDevices) _buildScanningAnimation(),
                 const Spacer(),
               ],
             ),
