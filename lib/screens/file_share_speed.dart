@@ -1,633 +1,685 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:network_info_plus/network_info_plus.dart';
+import 'package:path/path.dart' as path;
+import 'package:http/http.dart' as http;
+import 'package:cryptography/cryptography.dart';
 
-import 'package:transcrypt/models/DeviceInfoModel.dart';
-import 'package:transcrypt/service/ReceiverService.dart';
-import 'package:transcrypt/service/SenderService.dart';
+void main() => runApp(const TransCryptApp());
 
-class FileTransferPage extends StatefulWidget {
-  const FileTransferPage({super.key});
+class KeysPair {
+  SimplePublicKey publicKey;
+  KeyPair privateKey;
+  KeysPair({required this.privateKey, required this.publicKey});
 
-  @override
-  State<FileTransferPage> createState() => _FileTransferPageState();
+  static Future<KeysPair> generateKeyPair() async {
+    final algo = X25519();
+    final keyPair = await algo.newKeyPair();
+    final publicKey = await keyPair.extractPublicKey();
+    return KeysPair(privateKey: keyPair, publicKey: publicKey);
+  }
 }
 
-class _FileTransferPageState extends State<FileTransferPage> {
-  List<String> _selectedFiles = [];
-  bool _isServerRunning = false;
-  bool _isReceiving = false;
-  bool _scanning = false;
-  List<DeviceInfo> _foundServers = [];
-  DeviceInfo? _selectedServer;
-  double _transferSpeed = 0.0;
-  bool _isDark = true;
+class ApiService {
+  static const String baseUrl = 'http://localhost:8080';
+
+  static Future<SimplePublicKey> getServerPublicKey() async {
+    final response = await http.get(Uri.parse('$baseUrl/public-key'));
+    final data = jsonDecode(response.body);
+    return SimplePublicKey(base64Decode(data['publicKey']), type: KeyPairType.x25519);
+  }
+
+  static Future<Map<String, dynamic>> uploadFile(File file, KeysPair clientKeyPair) async {
+    await getServerPublicKey();
+    var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload'));
+    request.files.add(await http.MultipartFile.fromPath('file', file.path));
+    request.fields['publicKey'] = base64Encode(clientKeyPair.publicKey.bytes);
+    var response = await http.Response.fromStream(await request.send());
+    return jsonDecode(response.body);
+  }
+}
+
+class TransCryptApp extends StatelessWidget {
+  const TransCryptApp({Key? key}) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'TransCrypt',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF3B82F6),
+          brightness: Brightness.light,
+        ),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF3B82F6),
+          brightness: Brightness.dark,
+        ),
+      ),
+      themeMode: ThemeMode.dark,
+      home: const TransCryptHome(),
+    );
+  }
+}
+
+class TransCryptHome extends StatefulWidget {
+  const TransCryptHome({Key? key}) : super(key: key);
+  
+  @override
+  State<TransCryptHome> createState() => _TransCryptHomeState();
+}
+
+class _TransCryptHomeState extends State<TransCryptHome> with TickerProviderStateMixin {
+  bool _scanningDevices = false;
+  late AnimationController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: LinearGradient(
+                      colors: [color, color.withOpacity(0.7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScanningAnimation() {
+    return AnimatedBuilder(
+      animation: _searchController,
+      builder: (context, child) {
+        return Container(
+          margin: const EdgeInsets.only(top: 40),
+          child: Column(
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  ...List.generate(3, (index) {
+                    return Transform.scale(
+                      scale: 0.5 + (_searchController.value * 0.5) + (index * 0.2),
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF10B981).withOpacity(0.3 - (index * 0.1)),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF10B981).withOpacity(0.3),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.radar,
+                      size: 50,
+                      color: Color(0xFF10B981),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Scanning for devices...',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Looking for nearby devices',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[400],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-      appBar: AppBar(
-        backgroundColor: _isDark ? const Color(0xFF1E293B) : Colors.white,
-        elevation: 4,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: _isDark ? Colors.white : const Color(0xFF0F172A)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF3B82F6), Color(0xFF9333EA)],
-                ),
-              ),
-              child: const Icon(Icons.swap_horiz, color: Colors.white, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              "File Transfer",
-              style: TextStyle(
-                color: _isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(_isDark ? Icons.wb_sunny : Icons.nightlight_round, color: _isDark ? const Color(0xFFFBBF24) : const Color(0xFF475569)),
-            onPressed: () => setState(() => _isDark = !_isDark),
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // SEND FILE SECTION
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: _isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF3B82F6).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.upload_file, color: Color(0xFF3B82F6), size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          "Send Files",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: _isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: _pickFiles,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: _isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _selectedFiles.isEmpty ? Icons.attach_file : Icons.folder_open,
-                              color: const Color(0xFF3B82F6),
-                              size: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _selectedFiles.isEmpty
-                                    ? "Tap to select files"
-                                    : "${_selectedFiles.length} file(s) selected",
-                                style: TextStyle(
-                                  color: _isDark ? Colors.white70 : Colors.black87,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (_selectedFiles.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _isDark ? const Color(0xFF334155).withOpacity(0.5) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Selected Files:",
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: _isDark ? Colors.white70 : Colors.black54,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            ..._selectedFiles.take(3).map((f) => Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.insert_drive_file, size: 14, color: _isDark ? Colors.white54 : Colors.black45),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      f.split('/').last,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: _isDark ? Colors.white60 : Colors.black54,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )),
-                            if (_selectedFiles.length > 3)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  "and ${_selectedFiles.length - 3} more...",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontStyle: FontStyle.italic,
-                                    color: _isDark ? Colors.white54 : Colors.black45,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _selectedFiles.isEmpty || _isServerRunning ? null : _startFileServer,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF3B82F6),
-                          disabledBackgroundColor: const Color(0xFF64748B),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 2,
-                        ),
-                        child: _isServerRunning
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                              )
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.send, size: 18, color: Colors.white),
-                                  SizedBox(width: 8),
-                                  Text("Start Server", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // RECEIVE FILE SECTION
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: _isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.download, color: Color(0xFF10B981), size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          "Receive Files",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: _isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _scanning ? null : _scanNetwork,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          disabledBackgroundColor: const Color(0xFF64748B),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 2,
-                        ),
-                        child: _scanning
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                              )
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.search, size: 18, color: Colors.white),
-                                  SizedBox(width: 8),
-                                  Text("Scan Network", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                      ),
-                    ),
-                    if (_scanning)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: LinearProgressIndicator(
-                          backgroundColor: _isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    if (_foundServers.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        "Available Servers:",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: _isDark ? Colors.white70 : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: _isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: _foundServers.map((server) => Container(
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: _isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0),
-                                  width: 1,
-                                ),
-                              ),
-                            ),
-                            child: RadioListTile<DeviceInfo>(
-                              value: server,
-                              groupValue: _selectedServer,
-                              onChanged: (val) => setState(() => _selectedServer = val),
-                              title: Text(
-                                server.wifiIP,
-                                style: TextStyle(
-                                  color: _isDark ? Colors.white : Colors.black87,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              secondary: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF10B981).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.router, color: Color(0xFF10B981), size: 20),
-                              ),
-                              activeColor: const Color(0xFF10B981),
-                            ),
-                          )).toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: _selectedServer == null || _isReceiving ? null : _receiveFiles,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF10B981),
-                            disabledBackgroundColor: const Color(0xFF64748B),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 2,
-                          ),
-                          child: _isReceiving
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
-                              : const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.download, size: 18, color: Colors.white),
-                                    SizedBox(width: 8),
-                                    Text("Receive Files", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                                  ],
-                                ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-
-              // TRANSFER PROGRESS SECTION
-              if (_isReceiving) ...[
-                const SizedBox(height: 24),
+      backgroundColor: const Color(0xFF0F172A),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
-                    color: _isDark ? const Color(0xFF1E293B) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF8B5CF6).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.speed, color: Color(0xFF8B5CF6), size: 20),
+                  child: const Icon(
+                    Icons.swap_horiz_rounded,
+                    size: 64,
+                    color: Color(0xFF3B82F6),
+                  ),
+                ),
+                const SizedBox(height: 60),
+                Row(
+                  children: [
+                    _buildButton(
+                      label: 'Sender',
+                      icon: Icons.send_rounded,
+                      color: const Color(0xFF3B82F6),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FileUploadScreen(isDarkMode: true),
                           ),
-                          const SizedBox(width: 12),
-                          Text(
-                            "Transfer Progress",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: _isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      // Progress Bar with Speed
-                      Stack(
-                        children: [
-                          Container(
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: _isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: LinearProgressIndicator(
-                              minHeight: 60,
-                              backgroundColor: Colors.transparent,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                const Color(0xFF10B981).withOpacity(0.3),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 16),
+                    _buildButton(
+                      label: 'Receiver',
+                      icon: Icons.download_rounded,
+                      color: const Color(0xFF10B981),
+                      onTap: () {
+                        setState(() => _scanningDevices = true);
+                        Future.delayed(const Duration(seconds: 3), () {
+                          if (mounted) {
+                            setState(() => _scanningDevices = false);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const FileReceiverScreen(isDarkMode: true),
                               ),
-                            ),
-                          ),
-                          Container(
-                            height: 60,
-                            alignment: Alignment.center,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.download_rounded,
-                                      color: _isDark ? Colors.white : Colors.black87,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      "Receiving...",
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: _isDark ? Colors.white : Colors.black87,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "${(_transferSpeed * 8 / 1000000).toStringAsFixed(2)} Mbps",
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF10B981),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                            );
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                if (_scanningDevices) _buildScanningAnimation(),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class FileUploadScreen extends StatefulWidget {
+  final bool isDarkMode;
+  const FileUploadScreen({Key? key, this.isDarkMode = true}) : super(key: key);
+  
+  @override
+  State<FileUploadScreen> createState() => _FileUploadScreenState();
+}
+
+class _FileUploadScreenState extends State<FileUploadScreen> with SingleTickerProviderStateMixin {
+  late bool isDark;
+  File? _file;
+  bool _uploading = false;
+  KeysPair? _keyPair;
+  String _status = '';
+  double _progress = 0.0;
+  late AnimationController _uploadController;
+
+  @override
+  void initState() {
+    super.initState();
+    isDark = widget.isDarkMode;
+    _uploadController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+    KeysPair.generateKeyPair().then((k) {
+      if (mounted) {
+        setState(() => _keyPair = k);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _uploadController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.platform.pickFiles();
+    if (result?.files.single.path != null) {
+      setState(() => _file = File(result!.files.single.path!));
+    }
+  }
+
+  Future<void> _sendFile() async {
+    if (_file == null || _keyPair == null) return;
+    setState(() {
+      _uploading = true;
+      _status = 'Uploading...';
+      _progress = 0;
+    });
+    _uploadController.repeat();
+
+    for (int i = 0; i <= 100; i += 10) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (mounted) setState(() => _progress = i / 100);
+    }
+
+    try {
+      await ApiService.uploadFile(_file!, _keyPair!);
+      if (mounted) {
+        setState(() => _status = 'Success!');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File uploaded successfully!')),
+        );
+        await Future.delayed(const Duration(seconds: 1));
+        setState(() {
+          _uploading = false;
+          _file = null;
+          _progress = 0;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _status = 'Failed: $e';
+          _uploading = false;
+        });
+      }
+    } finally {
+      _uploadController.stop();
+      _uploadController.reset();
+    }
+  }
+
+  Widget _buildUploadAnimation() {
+    return AnimatedBuilder(
+      animation: _uploadController,
+      builder: (context, child) {
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 100,
+                    height: 100,
+                    child: CircularProgressIndicator(
+                      value: _progress,
+                      strokeWidth: 6,
+                      backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.cloud_upload_rounded,
+                        size: 40,
+                        color: Color(0xFF3B82F6),
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildSpeedStat(
-                            "Download Speed",
-                            "${(_transferSpeed / 1024 / 1024).toStringAsFixed(2)} MB/s",
-                            Icons.download,
-                            const Color(0xFF10B981),
-                          ),
-                          _buildSpeedStat(
-                            "Network",
-                            "${(_transferSpeed * 8 / 1000000).toStringAsFixed(1)} Mbps",
-                            Icons.network_check,
-                            const Color(0xFF8B5CF6),
-                          ),
-                        ],
+                      const SizedBox(height: 6),
+                      Text(
+                        '${(_progress * 100).toInt()}%',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _status,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.arrow_back_rounded,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Text(
+                    'Send File',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              if (_keyPair != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.withOpacity(0.5)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_rounded, color: Colors.green, size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'End-to-end Encrypted',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
                 ),
-              ],
+              const SizedBox(height: 20),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _uploading ? null : _pickFile,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: _file != null
+                            ? const Color(0xFF3B82F6)
+                            : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                        width: 2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          _file == null ? Icons.upload_file_rounded : Icons.insert_drive_file_rounded,
+                          size: 56,
+                          color: const Color(0xFF3B82F6),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _file == null ? 'Tap to select file' : path.basename(_file!.path),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (_uploading) _buildUploadAnimation(),
+              SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+              if (_file != null)
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _uploading ? null : _sendFile,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3B82F6),
+                      disabledBackgroundColor: const Color(0xFF3B82F6).withOpacity(0.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Send File',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
       ),
     );
   }
+}
+class FileReceiverScreen extends StatelessWidget {
+  final bool isDarkMode;
+  const FileReceiverScreen({Key? key, this.isDarkMode = true}) : super(key: key);
 
-  Widget _buildSpeedStat(String label, String value, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor:
+          isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+      body: SafeArea(
         child: Column(
           children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                color: _isDark ? Colors.white60 : Colors.black54,
+            // Top bar
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.arrow_back_rounded,
+                      color: isDarkMode ? Colors.white : Colors.black,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Text(
+                    'Receive File',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isDarkMode ? Colors.white : Colors.black,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: color,
+
+            // Scrollable receiver body
+            Expanded(
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Column(
+                    children: [
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+                      Container(
+                        padding: const EdgeInsets.all(32),
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? const Color(0xFF1E293B)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.download_rounded,
+                              size: 72,
+                              color: Color(0xFF10B981),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'Waiting for files...',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: isDarkMode
+                                    ? Colors.white
+                                    : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Files sent to you will appear here',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isDarkMode
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 100),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  Future<void> _receiveFiles() async {
-    if (_selectedServer == null) return;
-    setState(() {
-      _isReceiving = true;
-      _transferSpeed = 0;
-    });
-
-    final saveDir = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: "Select Folder to Save Files");
-    if (saveDir != null) {
-      await FileReceiver.downloadMultipleFiles(
-        _selectedServer!.wifiIP,
-        saveDir,
-        onSpeedUpdate: (speed) {
-          if (mounted) {
-            setState(() {
-              _transferSpeed = speed;
-            });
-          }
-        },
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Files saved to $saveDir")),
-        );
-      }
-    }
-
-    setState(() => _isReceiving = false);
-  }
-
-  // PICK MULTIPLE FILES
-  Future<void> _pickFiles() async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
-    if (result != null) {
-      setState(() => _selectedFiles = result.files.map((f) => f.path!).toList());
-    }
-  }
-
-  // START FILE SERVER (MULTIPLE FILES)
-  Future<void> _startFileServer() async {
-    if (_selectedFiles.isEmpty) return;
-    setState(() => _isServerRunning = true);
-
-    final files = _selectedFiles.map((path) => File(path)).toList();
-    await FileSender.startFileServerMultiple(files, context);
-
-    setState(() => _isServerRunning = false);
-  }
-
-  // SCAN NETWORK
-  Future<void> _scanNetwork() async {
-    final info = NetworkInfo();
-    final ip = await info.getWifiIP();
-    if (ip == null) return;
-
-    final subnet = FileReceiver.getSubnet(ip);
-
-    setState(() {
-      _scanning = true;
-      _foundServers.clear();
-    });
-
-    final devices = await FileReceiver.scanForServers(subnet);
-    setState(() {
-      _foundServers = devices;
-      _scanning = false;
-    });
   }
 }

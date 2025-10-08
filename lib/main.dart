@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:transcrypt/screens/file_share.dart';
 import 'package:transcrypt/screens/file_share_speed.dart';
+import 'package:transcrypt/screens/login_screen.dart';
 
 
 
@@ -24,8 +25,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Firebase Auth',
-      home:  FileTransferPage(),
+      title: 'Flutter Supabase Auth',
+      home:  Login(),
     );
   }
 }

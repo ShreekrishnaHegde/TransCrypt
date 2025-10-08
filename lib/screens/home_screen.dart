@@ -263,7 +263,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       case 0:
         return _buildHomePage();
       case 1:
-        return FileTransferPage();
+        return TransCryptApp();
       case 2:
         return _buildHistoryPage();
       default:
