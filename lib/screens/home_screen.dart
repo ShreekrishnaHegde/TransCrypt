@@ -5,6 +5,7 @@ import 'package:transcrypt/models/DeviceInfoModel.dart';
 import 'package:transcrypt/screens/file_share_speed.dart';
 import 'package:transcrypt/service/SenderService.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:transcrypt/screens/History.dart';
 
 // 2. Add this at the top level (after imports, before your widget class)
 final supabase = Supabase.instance.client;
@@ -265,7 +266,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       case 1:
         return TransCryptApp();
       case 2:
-        return _buildHistoryPage();
+        return FileHistoryPage();
       default:
         return _buildHomePage();
     }
@@ -465,101 +466,9 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildStatCard(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _isDarkMode
-            ? const Color(0xFF1E293B).withOpacity(0.8)
-            : Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 12),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: _isDarkMode ? Colors.grey[400] : Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: _isDarkMode ? Colors.white : Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+ 
 
-
-  Widget _buildHistoryPage() {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.all(48),
-        decoration: BoxDecoration(
-          color: _isDarkMode
-              ? const Color(0xFF1E293B).withOpacity(0.8)
-              : Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 30,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.history,
-              size: 64,
-              color: _isDarkMode ? Colors.grey[700] : Colors.grey[300],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'History Page',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: _isDarkMode ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Transfer history will be displayed here',
-              style: TextStyle(
-                color: _isDarkMode ? Colors.grey[400] : Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  
 
 
 // 2. Add this at the top level (after imports, before your widget class)
